@@ -505,7 +505,7 @@ function loadPage(page) {
 				window.initCassiePage6($container[0]);
 			}
 			if (page == 10 && window.initLockedRevealPage) {
-				window.initLockedRevealPage($container[0], { unlockedSrc: 'pics/6.JPG' });
+				window.initLockedRevealPage($container[0], { unlockedSrc: 'pics/6.png' });
 			}
 			if (page == 11 && window.initLockedRevealPage) {
 				// Gate turning forward until unlocked.
