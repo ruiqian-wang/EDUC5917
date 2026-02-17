@@ -511,7 +511,7 @@ function loadPage(page) {
 				// Gate turning forward until unlocked.
 				window.__page11Unlocked = window.__page11Unlocked === true ? true : false;
 				window.initLockedRevealPage($container[0], {
-					unlockedSrc: 'pics/7.jpg',
+					unlockedSrc: 'pics/7.JPG',
 					onUnlock: function() { window.__page11Unlocked = true; }
 				});
 			}
