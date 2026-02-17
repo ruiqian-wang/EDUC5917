@@ -22,6 +22,83 @@ function cassieEnsureScript(src) {
 	});
 }
 
+// Global gate flag for page 11.
+window.__page11Unlocked = window.__page11Unlocked === true;
+
+// Simple "locked -> revealed image" helper for static pages.
+// Usage: initLockedRevealPage(containerEl, { unlockedSrc: 'pics/7.jpg' })
+window.initLockedRevealPage = function(containerEl, opts) {
+	try {
+		if (!containerEl) return;
+		if (containerEl.__lockedRevealInitialized) return;
+
+		opts = opts || {};
+		var unlockedSrc = opts.unlockedSrc;
+		var onUnlock = opts.onUnlock;
+		if (!unlockedSrc) return;
+
+		var root = containerEl.querySelector('.js-locked-reveal');
+		if (!root) return;
+
+		var img = root.querySelector('.js-locked-reveal-img');
+		var btn = root.querySelector('.js-locked-reveal-btn');
+		if (!img || !btn) return;
+
+		// Fade transition (can't animate src change directly).
+		img.style.opacity = img.style.opacity || '1';
+		img.style.transition = img.style.transition || 'opacity 280ms ease';
+
+		btn.addEventListener('click', function(e) {
+			try {
+				e.preventDefault();
+				e.stopPropagation();
+				if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+			} catch (err) {}
+
+			// Prevent double-clicks.
+			btn.disabled = true;
+			btn.style.pointerEvents = 'none';
+
+			// Fade out, swap, then fade in when loaded.
+			img.style.opacity = '0';
+			setTimeout(function() {
+				var done = false;
+				function reveal() {
+					if (done) return;
+					done = true;
+					// Fade in on next frame.
+					requestAnimationFrame(function() {
+						img.style.opacity = '1';
+					});
+					btn.style.display = 'none';
+					root.classList.add('is-unlocked');
+					if (typeof onUnlock === 'function') onUnlock();
+				}
+
+				img.onload = function() {
+					img.onload = null;
+					reveal();
+				};
+				img.onerror = function() {
+					// If loading fails, at least restore visibility and button.
+					img.onerror = null;
+					img.style.opacity = '1';
+					btn.disabled = false;
+					btn.style.pointerEvents = '';
+				};
+
+				img.src = unlockedSrc;
+				// If the image is cached and loads instantly, onload may not fire reliably.
+				if (img.complete) reveal();
+			}, 180);
+		});
+
+		containerEl.__lockedRevealInitialized = true;
+	} catch (e) {
+		console.warn('[locked-reveal] init failed:', e);
+	}
+};
+
 // Page 6: particles background (Three.js)
 window.initCassiePage6 = function(containerEl) {
 	try {
@@ -341,12 +418,12 @@ function updateDepth(book, newPage) {
 		depthWidth = 16*Math.min(1, (pages-page)*2/pages);
 
 	if (newPage<pages-3)
-		$('.sj-book .p111 .depth').css({
+		$('.sj-book .p21 .depth').css({
 			width: depthWidth,
 			right: 20 - depthWidth
 		});
 	else
-		$('.sj-book .p111 .depth').css({width: 0});
+		$('.sj-book .p21 .depth').css({width: 0});
 
 }
 
@@ -426,6 +503,17 @@ function loadPage(page) {
 			// Init special pages after DOM injection
 			if (page == 6 && window.initCassiePage6) {
 				window.initCassiePage6($container[0]);
+			}
+			if (page == 10 && window.initLockedRevealPage) {
+				window.initLockedRevealPage($container[0], { unlockedSrc: 'pics/6.png' });
+			}
+			if (page == 11 && window.initLockedRevealPage) {
+				// Gate turning forward until unlocked.
+				window.__page11Unlocked = window.__page11Unlocked === true ? true : false;
+				window.initLockedRevealPage($container[0], {
+					unlockedSrc: 'pics/7.jpg',
+					onUnlock: function() { window.__page11Unlocked = true; }
+				});
 			}
 		})
 		.fail(function(xhr, status, error) {
