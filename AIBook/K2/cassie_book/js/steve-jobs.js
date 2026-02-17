@@ -25,6 +25,127 @@ function cassieEnsureScript(src) {
 // Global gate flag for page 11.
 window.__page11Unlocked = window.__page11Unlocked === true;
 
+// Global state for page 8/9 flow.
+window.__page8Answered = window.__page8Answered === true;
+window.__page9Revealed = window.__page9Revealed === true;
+window.__page9Answered = window.__page9Answered === true;
+
+// Fade-swap helper (re-usable; animates opacity instead of src).
+window.fadeSwapImage = function(imgEl, newSrc, cb) {
+	try {
+		if (!imgEl || !newSrc) return;
+		imgEl.style.opacity = imgEl.style.opacity || '1';
+		imgEl.style.transition = imgEl.style.transition || 'opacity 280ms ease';
+
+		imgEl.style.opacity = '0';
+		setTimeout(function() {
+			var done = false;
+			function finish() {
+				if (done) return;
+				done = true;
+				requestAnimationFrame(function() { imgEl.style.opacity = '1'; });
+				if (typeof cb === 'function') cb();
+			}
+
+			imgEl.onload = function() {
+				imgEl.onload = null;
+				finish();
+			};
+			imgEl.onerror = function() {
+				imgEl.onerror = null;
+				imgEl.style.opacity = '1';
+			};
+
+			imgEl.src = newSrc;
+			if (imgEl.complete) finish();
+		}, 180);
+	} catch (e) {
+		// no-op
+	}
+};
+
+function stopTurnJsClick(e) {
+	try {
+		e.preventDefault();
+		e.stopPropagation();
+		if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+	} catch (err) {}
+}
+
+window.initPage8QA = function(containerEl) {
+	try {
+		if (!containerEl) return;
+		if (containerEl.__page8QAInit) return;
+
+		var box = containerEl.querySelector('.js-page8-qa');
+		if (!box) return;
+		var yes = box.querySelector('.js-page8-yes');
+		var no = box.querySelector('.js-page8-no');
+		if (!yes || !no) return;
+
+		function onAnswer(e) {
+			stopTurnJsClick(e);
+			window.__page8Answered = true;
+			window.__page9Revealed = true;
+
+			yes.disabled = true;
+			no.disabled = true;
+			yes.style.opacity = '0.7';
+			no.style.opacity = '0.7';
+
+			// If page9 is already in DOM, reveal immediately; otherwise it will reveal on init.
+			var p9 = document.querySelector('.sj-book .p9');
+			if (p9) {
+				var img = p9.querySelector('.js-page9-lock-img');
+				if (img) window.fadeSwapImage(img, 'pics/5.png');
+			}
+		}
+
+		yes.addEventListener('click', onAnswer);
+		no.addEventListener('click', onAnswer);
+
+		containerEl.__page8QAInit = true;
+	} catch (e) {
+		console.warn('[page8] QA init failed:', e);
+	}
+};
+
+window.initPage9QA = function(containerEl) {
+	try {
+		if (!containerEl) return;
+		if (containerEl.__page9QAInit) return;
+
+		var img = containerEl.querySelector('.js-page9-lock-img');
+		// If page8 already answered, reveal lock -> 5.png
+		if ((window.__page8Answered || window.__page9Revealed) && img) {
+			window.fadeSwapImage(img, 'pics/5.png');
+		}
+
+		var box = containerEl.querySelector('.js-page9-qa');
+		if (!box) return;
+		var yes = box.querySelector('.js-page9-yes');
+		var no = box.querySelector('.js-page9-no');
+		if (!yes || !no) return;
+
+		function onAnswer(e) {
+			stopTurnJsClick(e);
+			window.__page9Answered = true;
+
+			yes.disabled = true;
+			no.disabled = true;
+			yes.style.opacity = '0.7';
+			no.style.opacity = '0.7';
+		}
+
+		yes.addEventListener('click', onAnswer);
+		no.addEventListener('click', onAnswer);
+
+		containerEl.__page9QAInit = true;
+	} catch (e) {
+		console.warn('[page9] QA init failed:', e);
+	}
+};
+
 // Simple "locked -> revealed image" helper for static pages.
 // Usage: initLockedRevealPage(containerEl, { unlockedSrc: 'pics/7.jpg' })
 window.initLockedRevealPage = function(containerEl, opts) {
@@ -503,6 +624,12 @@ function loadPage(page) {
 			// Init special pages after DOM injection
 			if (page == 6 && window.initCassiePage6) {
 				window.initCassiePage6($container[0]);
+			}
+			if (page == 8 && window.initPage8QA) {
+				window.initPage8QA($container[0]);
+			}
+			if (page == 9 && window.initPage9QA) {
+				window.initPage9QA($container[0]);
 			}
 			if (page == 10 && window.initLockedRevealPage) {
 				window.initLockedRevealPage($container[0], { unlockedSrc: 'pics/6.png' });

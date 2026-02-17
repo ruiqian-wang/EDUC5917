@@ -175,6 +175,12 @@ function loadApp() {
 					currentPage = book.turn('page'),
 					pages = book.turn('pages');
 
+				// Gate: must answer page 9 before going past it.
+				if (page > 9 && window.__page9Answered !== true) {
+					e.preventDefault();
+					return;
+				}
+
 				// Gate: must unlock page 11 before going past it (covers spread 10–11 too).
 				if (page > 11 && window.__page11Unlocked !== true) {
 					e.preventDefault();
