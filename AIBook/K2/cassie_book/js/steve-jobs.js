@@ -26,7 +26,7 @@ function cassieEnsureScript(src) {
 window.__page11Unlocked = window.__page11Unlocked === true;
 
 // Simple "locked -> revealed image" helper for static pages.
-// Usage: initLockedRevealPage(containerEl, { unlockedSrc: 'pics/7.jpg' })
+// Usage: initLockedRevealPage(containerEl, { unlockedSrc: 'pics/7.JPG' })
 window.initLockedRevealPage = function(containerEl, opts) {
 	try {
 		if (!containerEl) return;
@@ -505,13 +505,13 @@ function loadPage(page) {
 				window.initCassiePage6($container[0]);
 			}
 			if (page == 10 && window.initLockedRevealPage) {
-				window.initLockedRevealPage($container[0], { unlockedSrc: 'pics/6.png' });
+				window.initLockedRevealPage($container[0], { unlockedSrc: 'pics/7.JPG' });
 			}
 			if (page == 11 && window.initLockedRevealPage) {
 				// Gate turning forward until unlocked.
 				window.__page11Unlocked = window.__page11Unlocked === true ? true : false;
 				window.initLockedRevealPage($container[0], {
-					unlockedSrc: 'pics/7.JPG',
+					unlockedSrc: 'pics/8.JPG',
 					onUnlock: function() { window.__page11Unlocked = true; }
 				});
 			}
