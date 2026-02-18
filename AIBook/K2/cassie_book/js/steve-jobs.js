@@ -64,6 +64,197 @@ window.fadeSwapImage = function(imgEl, newSrc, cb) {
 	}
 };
 
+// Magnifier (hover to zoom a portion of an image).
+// Attaches to "main" images on each page (including lock/reveal images).
+window.initPageMagnifier = function(containerEl, opts) {
+	try {
+		if (!containerEl) return;
+		if (containerEl.__magnifierInit) return;
+
+		opts = opts || {};
+		var zoom = typeof opts.zoom === 'number' ? opts.zoom : 2.2;
+		var size = typeof opts.size === 'number' ? opts.size : 140;
+
+		// Make sure we can absolutely-position the lens inside the page container.
+		var cs = window.getComputedStyle(containerEl);
+		if (cs && cs.position === 'static') containerEl.style.position = 'relative';
+
+		// Toggle button (click to enable/disable magnifier).
+		var toggle = document.createElement('button');
+		toggle.type = 'button';
+		toggle.className = 'page-magnifier-toggle';
+		toggle.setAttribute('aria-label', 'Toggle magnifier');
+		toggle.style.position = 'absolute';
+		toggle.style.top = '12px';
+		toggle.style.right = '200px';
+		toggle.style.width = '44px';
+		toggle.style.height = '44px';
+		toggle.style.border = '0';
+		toggle.style.borderRadius = '12px';
+		toggle.style.cursor = 'pointer';
+		toggle.style.padding = '0';
+		toggle.style.display = 'grid';
+		toggle.style.placeItems = 'center';
+		toggle.style.zIndex = '10000';
+		toggle.style.background = 'transparent';
+		toggle.style.backdropFilter = 'blur(6px)';
+		toggle.style.boxShadow = '0 10px 30px rgba(0,0,0,0.25)';
+		toggle.style.border = '1px solid rgba(255,255,255,0.35)';
+
+		// Use project asset icon.
+		var icon = document.createElement('img');
+		icon.className = 'page-magnifier-icon';
+		icon.src = 'pics/magnifier.png';
+		icon.alt = '';
+		icon.style.width = '26px';
+		icon.style.height = '26px';
+		icon.style.objectFit = 'contain';
+		icon.style.filter = 'drop-shadow(0 2px 8px rgba(0,0,0,0.25))';
+		icon.style.pointerEvents = 'none';
+		toggle.appendChild(icon);
+		containerEl.appendChild(toggle);
+
+		containerEl.__magnifierEnabled = false;
+
+		var lens = document.createElement('div');
+		lens.className = 'page-magnifier-lens';
+		lens.style.position = 'absolute';
+		lens.style.width = size + 'px';
+		lens.style.height = size + 'px';
+		lens.style.borderRadius = '999px';
+		lens.style.border = '2px solid rgba(255,255,255,0.9)';
+		// lens.style.boxShadow = '0 14px 40px rgba(0,0,0,0.35)';
+		lens.style.backgroundRepeat = 'no-repeat';
+		// lens.style.backgroundColor = 'rgba(0,0,0,0.12)';
+		lens.style.pointerEvents = 'none';
+		lens.style.display = 'none';
+		lens.style.zIndex = '9999';
+		containerEl.appendChild(lens);
+
+		function setToggleState(enabled) {
+			containerEl.__magnifierEnabled = !!enabled;
+			if (!containerEl.__magnifierEnabled) lens.style.display = 'none';
+			toggle.style.background = 'transparent';
+			toggle.style.borderColor = containerEl.__magnifierEnabled ? 'rgba(37,99,235,0.9)' : 'rgba(255,255,255,0.35)';
+			toggle.style.boxShadow = containerEl.__magnifierEnabled
+				? '0 10px 30px rgba(37,99,235,0.25)'
+				: '0 10px 30px rgba(0,0,0,0.25)';
+		}
+
+		toggle.addEventListener('click', function(e) {
+			// Don't let turn.js treat this as a page click.
+			stopTurnJsClick(e);
+			setToggleState(!containerEl.__magnifierEnabled);
+		});
+
+		function getRenderedBox(imgRect, naturalW, naturalH) {
+			var rectW = imgRect.width;
+			var rectH = imgRect.height;
+			if (!naturalW || !naturalH || !rectW || !rectH) return null;
+
+			var imgAR = naturalW / naturalH;
+			var boxAR = rectW / rectH;
+			var renderW, renderH, offX, offY;
+			if (imgAR > boxAR) {
+				// constrained by width
+				renderW = rectW;
+				renderH = rectW / imgAR;
+				offX = 0;
+				offY = (rectH - renderH) / 2;
+			} else {
+				// constrained by height
+				renderH = rectH;
+				renderW = rectH * imgAR;
+				offX = (rectW - renderW) / 2;
+				offY = 0;
+			}
+			return { renderW: renderW, renderH: renderH, offX: offX, offY: offY };
+		}
+
+		function attachToImage(img) {
+			if (!img || img.__magnifierAttached) return;
+			// Skip UI icons/buttons; only magnify page content images.
+			if (img.closest && (img.closest('button') || img.closest('.page-magnifier-toggle'))) return;
+
+			img.__magnifierAttached = true;
+
+			function hide() {
+				lens.style.display = 'none';
+			}
+
+			function move(e) {
+				if (!containerEl.__magnifierEnabled) return;
+				var imgRect = img.getBoundingClientRect();
+				var cRect = containerEl.getBoundingClientRect();
+
+				var x = e.clientX - imgRect.left;
+				var y = e.clientY - imgRect.top;
+
+				// Compute actual rendered image area under object-fit: contain.
+				var box = getRenderedBox(imgRect, img.naturalWidth, img.naturalHeight);
+				if (!box) return hide();
+
+				// Outside the rendered image (within letterboxed padding)
+				if (x < box.offX || x > box.offX + box.renderW || y < box.offY || y > box.offY + box.renderH) {
+					return hide();
+				}
+
+				// Position lens relative to container.
+				var relX = e.clientX - cRect.left;
+				var relY = e.clientY - cRect.top;
+				lens.style.left = Math.max(0, Math.min(cRect.width - size, relX - size / 2)) + 'px';
+				lens.style.top = Math.max(0, Math.min(cRect.height - size, relY - size / 2)) + 'px';
+
+				// Background zoom relative to the rendered image box.
+				var bx = x - box.offX;
+				var by = y - box.offY;
+				lens.style.backgroundImage = 'url("' + img.src + '")';
+				lens.style.backgroundSize = (box.renderW * zoom) + 'px ' + (box.renderH * zoom) + 'px';
+				lens.style.backgroundPosition =
+					(-bx * zoom + size / 2) + 'px ' +
+					(-by * zoom + size / 2) + 'px';
+
+				lens.style.display = 'block';
+			}
+
+			img.addEventListener('mousemove', move);
+			img.addEventListener('mouseenter', function() {
+				if (containerEl.__magnifierEnabled) lens.style.display = 'block';
+			});
+			img.addEventListener('mouseleave', hide);
+		}
+
+		// Attach to likely "main" images.
+		var imgs = containerEl.querySelectorAll('img');
+		for (var i = 0; i < imgs.length; i++) attachToImage(imgs[i]);
+
+		// Also attach to any images added later (some pages inject content dynamically).
+		var mo = new MutationObserver(function(muts) {
+			for (var mi = 0; mi < muts.length; mi++) {
+				var m = muts[mi];
+				if (!m.addedNodes) continue;
+				for (var ni = 0; ni < m.addedNodes.length; ni++) {
+					var node = m.addedNodes[ni];
+					if (!node) continue;
+					if (node.tagName === 'IMG') {
+						attachToImage(node);
+					} else if (node.querySelectorAll) {
+						var addedImgs = node.querySelectorAll('img');
+						for (var ai = 0; ai < addedImgs.length; ai++) attachToImage(addedImgs[ai]);
+					}
+				}
+			}
+		});
+		mo.observe(containerEl, { childList: true, subtree: true });
+		containerEl.__magnifierObserver = mo;
+
+		// If lock/reveal swaps src later, the listeners still work (same <img> element).
+		containerEl.__magnifierInit = true;
+	} catch (e) {
+		console.warn('[magnifier] init failed:', e);
+	}
+};
+
 function stopTurnJsClick(e) {
 	try {
 		e.preventDefault();
@@ -622,6 +813,9 @@ function loadPage(page) {
 			})(0);
 
 			// Init special pages after DOM injection
+			if (window.initPageMagnifier) {
+				window.initPageMagnifier($container[0]);
+			}
 			if (page == 6 && window.initCassiePage6) {
 				window.initCassiePage6($container[0]);
 			}
@@ -632,13 +826,13 @@ function loadPage(page) {
 				window.initPage9QA($container[0]);
 			}
 			if (page == 10 && window.initLockedRevealPage) {
-				window.initLockedRevealPage($container[0], { unlockedSrc: 'pics/6.png' });
+				window.initLockedRevealPage($container[0], { unlockedSrc: 'pics/7.jpg' });
 			}
 			if (page == 11 && window.initLockedRevealPage) {
 				// Gate turning forward until unlocked.
 				window.__page11Unlocked = window.__page11Unlocked === true ? true : false;
 				window.initLockedRevealPage($container[0], {
-					unlockedSrc: 'pics/7.jpg',
+					unlockedSrc: 'pics/8.jpg',
 					onUnlock: function() { window.__page11Unlocked = true; }
 				});
 			}
